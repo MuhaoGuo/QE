@@ -183,7 +183,7 @@ def ad_hoc_data(training_size, test_size, n, gap, repeat, plot_data=False, one_h
     # print("parity", parity)
     # dict1 = (-1) ** (my_array[0])
 
-    # d_m： 就是 f: parity  function  d_m 是 zz 吧， as  the  parity  function
+    # d_m：就是 f = ZZ  as  the  parity  function 吧
     d_m = None
     if n == 2:
         d_m = np.diag(parity)  # 对角矩阵

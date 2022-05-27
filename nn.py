@@ -5,18 +5,17 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
 n_data = torch.ones(100,2)
-x0 = torch.normal(2*n_data,1)
+x0 = torch.normal(2*n_data, 1)
 y0 = torch.zeros(100)
 # print(x0)
 x1 = torch.normal(-2*n_data,1)
 y1 = torch.ones(100)
 
-
-x = torch.cat((x0,x1),0).type(torch.FloatTensor)
-y = torch.cat((y0,y1)).type(torch.LongTensor)
+x = torch.cat((x0, x1), 0).type(torch.FloatTensor)
+y = torch.cat((y0, y1)).type(torch.LongTensor)
 # print(y)
 
-x,y = Variable(x), Variable(y)
+x, y = Variable(x), Variable(y)
 
 print(x)
 print(y)
@@ -48,20 +47,26 @@ print(net)
 
 optimizer = torch.optim.SGD(net.parameters(), lr=0.02)
 loss_func = torch.nn.CrossEntropyLoss()
+loss_func = torch.nn.MSELoss()
 
 # plt.ion()
 # plt.show()
 
 for t in range(101):
     out = net(x)
+    print(x.shape)
     # print(prediction)
+    print("out:", out)
+    print("y:", y)
+    print("out:", out.shape)
+    print("y:", y.shape)
+    break
     loss = loss_func(out, y)
-
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
-    if t%50 == 0:
+    if t%100 == 0:
         # plt.cla()
         # 过了一道 softmax 的激励函数后的最大概率才是预测值
         # print(F.softmax(prediction))
@@ -75,9 +80,13 @@ for t in range(101):
         plt.scatter(x.data.numpy()[:, 0], x.data.numpy()[:, 1], c=pred_y, s=100, lw=0, cmap='RdYlGn')
         accuracy = sum(pred_y == target_y) / 200  # 预测中有多少和真实值一样
         ax.text(1.5, -4, 'Accuracy=%.2f' % accuracy, fontdict={'size': 20, 'color': 'red'})
-        # plt.pause(0.1)
+        plt.pause(0.1)
         plt.show()
 
 
 # plt.ioff()  # 停止画图sigmoid
 # plt.show()
+
+
+
+

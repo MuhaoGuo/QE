@@ -32,24 +32,28 @@ import pandas as pd
 from ourNN import OurNeuralNetwork
 from Qkernel import run_Q_Kernel_method
 from functools import reduce
+from data_loader import data_loader
+import torch
+from torch.utils.data import Dataset, TensorDataset, DataLoader
+from sklearn.preprocessing import MinMaxScaler
 
-# 自测：==========================
-train = pd.read_csv('./quantum_circuit_designed_dataset/TEST_phi1_repeat1_train.csv')
-y_train, X_train_0, X_train_1 = np.array(train["y_train"]), train["feature1"], train["feature2"]
-X_train = np.array([X_train_0, X_train_1]).T
+# load dataset.
+X_train, y_train, X_test, y_test = data_loader()
+scaler = MinMaxScaler()
+scaler.fit(X_train)
+X_train = scaler.transform(X_train)
+# X_train = scaler.inverse_transform(X_train)
 
-test = pd.read_csv('./quantum_circuit_designed_dataset/TEST_phi1_repeat1_test.csv')
-y_test, X_test_0, X_test_1 = np.array(test["y_test"]), test["feature1"], test["feature2"]
-X_test = np.array([X_test_0, X_test_1]).T
+X_train = torch.Tensor(X_train)
+y_train = torch.Tensor(y_train)
+Train = TensorDataset(X_train, y_train)
 
-ournn = OurNeuralNetwork(learn_rate = 0.001, epochs = 1000)
+# train our NN
+print("......Init NN......")
+ournn = OurNeuralNetwork(learn_rate=0.001, epochs=1000)
 
-for i, x in enumerate(X_train):
-    y_true = y_train[i]
-    y_pred = ournn.feedforward(x)
-    print("y_pred", y_pred)
-    print("y_true", y_true)
 
+print("......Training.......")
 w1_original = ournn.w1
 w2_original = ournn.w2
 b1_original = ournn.b1
@@ -58,23 +62,24 @@ print(ournn.w1)
 print(ournn.w2)
 print(ournn.b1)
 print(ournn.b2)
-ournn.train(X_train, y_train)
+ournn.train(Train)
 print(ournn.w1)
 print(ournn.w2)
 print(ournn.b1)
 print(ournn.b2)
 
-print("=============== w1, w2, b1, b2 = w1_original, w2_original, b1_original, b2_original===================================")
-# w1, w2, b1, b2 = 1, 0, -1, np.pi
-# w1, w2, b1, b2 = 1, 1, 1, 1
-# w1, w2, b1, b2 = ournn.w1, ournn.w2, ournn.b1, ournn.b2
-w1, w2, b1, b2 = w1_original, w2_original, b1_original, b2_original
 
+
+#  以下是调用各个 核函数。
+# # 1. #########################################################################################
+# ##########################################################################################
+print("=============== w1, w2, b1, b2 = w1_original, w2_original, b1_original, b2_original===================================")
 def phi_function_general(x):
     '''
     # phi = (x_1 * np.kron(z_m, j_m) + x_2 * np.kron(j_m, z_m) + (np.pi - x_1) * (np.pi - x_2) * np.kron(z_m, z_m))
     # 𝜙(xi) = xi ,    𝜙(x1, x2) = (pi - x1) * (pi - x2)
     '''
+    w1, w2, b1, b2 = w1_original, w2_original, b1_original, b2_original
     coeff = (w1 * x[0] + b1) if len(x) == 1 else reduce(lambda m, n: m * n, w2 * x + b2)
     return coeff
 
@@ -85,23 +90,18 @@ run_Q_Kernel_method(X_train, y_train, X_test, y_test,
                     alpha=setting["alpha"],
                     paulis=setting["paulis"],
                     func=setting["func"])
-
-
-
-
-### ###### ###### ###### ###### ###### ###### ###### ###
+#
+# # 2. #########################################################################################
+# ##########################################################################################
 print("================w1, w2, b1, b2 = 1, 0, -1, np.pi ====================")
-w1, w2, b1, b2 = 1, 0, -1, np.pi
-# w1, w2, b1, b2 = 1, 1, 1, 1
-# w1, w2, b1, b2 = ournn.w1, ournn.w2, ournn.b1, ournn.b2
 def phi_function_general(x):
     '''
     # phi = (x_1 * np.kron(z_m, j_m) + x_2 * np.kron(j_m, z_m) + (np.pi - x_1) * (np.pi - x_2) * np.kron(z_m, z_m))
     # 𝜙(xi) = xi ,    𝜙(x1, x2) = (pi - x1) * (pi - x2)
     '''
+    w1, w2, b1, b2 = 1, 0, -1, np.pi
     coeff = (w1 * x[0] + b1) if len(x) == 1 else reduce(lambda m, n: m * n, w2 * x + b2)
     return coeff
-
 # def func_1(x: np.ndarray) -> float:
 #     '''
 #     # phi = (x_1 * np.kron(z_m, j_m) + x_2 * np.kron(j_m, z_m) + (np.pi - x_1) * (np.pi - x_2) * np.kron(z_m, z_m))
@@ -117,19 +117,18 @@ run_Q_Kernel_method(X_train, y_train, X_test, y_test,
                     alpha=setting["alpha"],
                     paulis=setting["paulis"],
                     func=setting["func"])
-
-
-
-### ###### ###### ###### ###### ###### ###### ###### ###
+#
+# #  3. #########################################################################################
+# ##########################################################################################
 print("=============== w1, w2, b1, b2 = 1, 1, 1, 1===================================")
-# w1, w2, b1, b2 = 1, 0, -1, np.pi
-w1, w2, b1, b2 = 1, 1, 1, 1
-# w1, w2, b1, b2 = ournn.w1, ournn.w2, ournn.b1, ournn.b2
+
+
 def phi_function_general(x):
     '''
     # phi = (x_1 * np.kron(z_m, j_m) + x_2 * np.kron(j_m, z_m) + (np.pi - x_1) * (np.pi - x_2) * np.kron(z_m, z_m))
     # 𝜙(xi) = xi ,    𝜙(x1, x2) = (pi - x1) * (pi - x2)
     '''
+    w1, w2, b1, b2 = 1, 1, 1, 1
     coeff = (w1 * x[0] + b1) if len(x) == 1 else reduce(lambda m, n: m * n, w2 * x + b2)
     return coeff
 
@@ -140,13 +139,12 @@ run_Q_Kernel_method(X_train, y_train, X_test, y_test,
                     alpha=setting["alpha"],
                     paulis=setting["paulis"],
                     func=setting["func"])
-
-### ###### ###### ###### ###### ###### ###### ###### ###
+#
+# #  4. #########################################################################################
+# ##########################################################################################
 print("=============== w1, w2, b1, b2 = ournn.w1, ournn.w2, ournn.b1, ournn.b2 ===================================")
-# w1, w2, b1, b2 = 1, 0, -1, np.pi
-# w1, w2, b1, b2 = 1, 1, 1, 1
-w1, w2, b1, b2 = ournn.w1, ournn.w2, ournn.b1, ournn.b2
 def phi_function_general(x):
+    w1, w2, b1, b2 = ournn.w1, ournn.w2, ournn.b1, ournn.b2
     '''
     # phi = (x_1 * np.kron(z_m, j_m) + x_2 * np.kron(j_m, z_m) + (np.pi - x_1) * (np.pi - x_2) * np.kron(z_m, z_m))
     # 𝜙(xi) = xi ,    𝜙(x1, x2) = (pi - x1) * (pi - x2)
@@ -161,56 +159,4 @@ run_Q_Kernel_method(X_train, y_train, X_test, y_test,
                     alpha=setting["alpha"],
                     paulis=setting["paulis"],
                     func=setting["func"])
-
-
-
-
-# train = pd.read_csv('./quantum_circuit_designed_dataset/phi1_repeat1_train.csv')
-# y_train, X_train_0, X_train_1 = np.array(train["y_train"]), train["feature1"], train["feature2"]
-# X_train = np.array([X_train_0, X_train_1]).T
 #
-# test = pd.read_csv('./quantum_circuit_designed_dataset/phi1_repeat1_test.csv')
-# y_test, X_test_0, X_test_1 = np.array(test["y_test"]), test["feature1"], test["feature2"]
-# X_test = np.array([X_test_0, X_test_1]).T
-#
-# y_train = [-1 if i == 0 else 1 for i in y_train]
-# y_test = [-1 if i == 0 else 1 for i in y_test]
-#
-# # print(X_train)
-# # print(y_train)
-# # Train our neural network!
-# from ourNN import OurNeuralNetwork
-#
-# network = OurNeuralNetwork(learn_rate = 0.00001, epochs = 1)
-# print("======== initial===== ")
-#
-# print("w1", network.w1)
-# print("w2", network.w2)
-# print("w3", network.w3)
-# print("w4", network.w4)
-# print("b1", network.b1)
-# print("b2", network.b2)
-# print("b3", network.b3)
-# print("b4", network.b4)
-#
-# # X_train, y_train = shuffle(X_train, y_train)
-# network.train(X_train, y_train)
-#
-# print("======== end ===== ")
-# print("w1", network.w1)
-# print("w2", network.w2)
-# print("w3", network.w3)
-# print("w4", network.w4)
-# print("b1", network.b1)
-# print("b2", network.b2)
-# print("b3", network.b3)
-# print("b4", network.b4)
-#
-#
-# # # Make some predictions
-# # emily = np.array([-7, -3]) # 128 pounds, 63 inches
-# # frank = np.array([20, 2])  # 155 pounds, 68 inches
-# # print("Emily: %.3f" % network.feedforward(emily)) # 0.951 - F
-# # print("Frank: %.3f" % network.feedforward(frank)) # 0.039 - M
-
-

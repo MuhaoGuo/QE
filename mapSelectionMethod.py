@@ -283,6 +283,7 @@ alphas = [0.1, 1, 2, 3, 5, 10]
 O_SET = {'sin', 'cos', 'tan', 'self'}
 S_SET = {"X", "Y", "Z", "I"}
 D_SET = {"XX", "XY", "XZ", "YX", "YY", "YZ", "ZX", "ZY", "ZZ"}
+
 def auto_phi(x1, x2, a1, a2, a3, a4, b1, b2, b3, b4, O, S, D) -> np.array:
     '''
     :param x1: feature1
@@ -411,6 +412,7 @@ def phi_function():
     return phi_map
 phi_maps = phi_function()
 '''
+
 # class AutoDesignQC():
 #     def __init__(self):
 #         return
@@ -463,9 +465,6 @@ phi_maps = phi_function()
 #
 #         score = score / len(y_train)
 #         return self
-
-
-
 
 def mapSelectMethod(dataset, a1, a2, a3, a4, b1, b2, b3, b4, O, S, D, repeat) -> float:
     n = 2
@@ -564,7 +563,6 @@ def mapSelectMethod(dataset, a1, a2, a3, a4, b1, b2, b3, b4, O, S, D, repeat) ->
     # all_scores.append(s)
 
 
-
 param_distributions ={
     "O": ["sin", 'cos', 'tan', 'self'],
     "S": ["X", "Y", "Z", "I"],
@@ -577,51 +575,6 @@ clf = RandomizedSearchCV(
     mapSelectMethod(kernel="rbf", class_weight="balanced"), param_distributions, n_iter=100
 )
 
-####
-    #
-    # all_scores = []
-    # for name in phi_names:
-    #     phi_map_i = phi_maps[name]
-    #     print("phi_map is", phi_map_i)
-    #
-    #     for i in range(len(X_train)):
-    #         x1, x2 = X_train[i][0], X_train[i][1]
-    #         y = y_train[i]
-    #         phi = phi_map_i(x1, x2)  # 调用 某一个 phi_map1 函数
-    #         # U_phi(x) feature map 的 i 及 矩阵实现
-    #         u_u = scipy.linalg.expm(1j * phi)  # pylint: disable=no-member  计算 e^A  的值，其中A为一个任意（应该是任意？）维数的方阵。
-    #         ######### 重复次数 真正的feature map #####################################################################################################################
-    #         # 重复2 次 真正的feature map： ZZ feature map 实现。 U_phi(x) H^2 U_phi(x) H^2 ｜0> ^n
-    #         psi = np.transpose(psi_0)
-    #         for r in range(repeat):
-    #             psi = np.asarray(u_u) @ h_2 @ psi
-    #
-    #         ###### expection. ##################################################################################################################################################################
-    #         #  m_m 是一种operator/hibert space ： real of 《psi｜ m_m ｜psi》  temp 是 期望。 为什么取 real？
-    #         temp = np.real(psi.conj().T @ m_m @ psi).item()  # 为什么取 real值 ？因为只有   operator是 hermintion 时，特征值才是real，导致期望是real。当然，这里operator应该是real
-    #         # print("temp", temp)
-    #         all_temp.append(temp)
-    #         ########################################################################################################################################################################
-    #
-    #         if abs(temp) >= 0.3:
-    #             # s += abs(temp * y)
-    #             s += abs(np.sign(temp * y))
-    #     s = s/len(y_train)
-    #     print("s is", s)
-    #     all_scores.append(s)
-    # print("all_scores", all_scores)
-    #
-    #
-    # best_index = all_scores.index(max(all_scores))
-    # best_name = phi_names[best_index]
-    # best_map = phi_maps[best_name]
-    # print("best_index",best_index)
-    # print("best_map", best_map)
-    # print("best_name", best_name)
-    #
-    # # print("all_temp", all_temp )
-    # # print("y_train", y_train)
-    # # return s
 
 
 def run():

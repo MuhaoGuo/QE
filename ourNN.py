@@ -2,7 +2,9 @@ import numpy as np
 import scipy
 from qiskit.utils import algorithm_globals
 import matplotlib.pyplot as plt
-
+from torch import nn
+from torch.utils.data import Dataset, TensorDataset, DataLoader
+import torch
 h_m = np.array([[1, 1], [1, -1]]) / np.sqrt(2)  # H GATE
 h_2 = np.kron(h_m, h_m)
 h_2 = np.asarray(h_2)
@@ -33,8 +35,9 @@ Paulis = {
     "HH": np.kron(h_m, h_m),  # 双 H gate
 }
 
-n = 2
-repeat = 1
+
+n = 2       # 2 dimension
+repeat = 1  # repeat times
 gap = 0
 
 f_a = np.arange(2 ** n)
@@ -47,12 +50,13 @@ for arindex, _ in enumerate(my_array):  # my_array 外层循环。
 
 my_array = np.asarray(my_array)
 my_array = np.transpose(my_array)
-# 定义 m_m
+
+# 定义 f
 parity = (-1) ** (my_array.sum(axis=0))  # parity奇偶性 [ 1 -1 -1  1],    -1 的 (0, 1,1,2) 次方  n =2 用到
 d_m = np.diag(parity)
 print("d_m", d_m)
 
-# seed = 12345 #可以。
+# seed = 12345 #可以
 seed = 12345
 algorithm_globals.random_seed = seed
 basis = algorithm_globals.random.random((2 ** n, 2 ** n)) + \
@@ -67,6 +71,7 @@ u_a = u_a[:, idx]  # u_a： 就是 V: a random  unitary V,  BELONG TO SU(4) .  e
 m_m = (np.asarray(u_a)).conj().T @ np.asarray(d_m) @ np.asarray(u_a)
 print("m_m:", m_m)
 
+
 psi_plus = np.transpose(np.ones(2)) / np.sqrt(2)
 psi_0 = [[1]]
 for k in range(n):
@@ -74,7 +79,6 @@ for k in range(n):
 
 # print("psi_0",psi_0)
 zero2 = np.array([[1, 0, 0, 0]]).T
-
 
 def d_pre_d_A(A, H_2, M, zero_2):  #
   t_0 = (H_2).dot(zero_2)
@@ -124,7 +128,6 @@ def mse_loss(y_true, y_pred):
   # y_true and y_pred are numpy arrays of the same length.
   return ((y_true - y_pred) ** 2).mean()
 
-
 class OurNeuralNetwork:
   '''
   A neural network with:
@@ -137,7 +140,7 @@ class OurNeuralNetwork:
   Real neural net code looks nothing like this. DO NOT use this code.
   Instead, read/run it to understand how this specific network works.
   '''
-  def __init__(self, learn_rate, epochs ):
+  def __init__(self, learn_rate, epochs):
     self.learn_rate = learn_rate
     self.epochs = epochs
 
@@ -201,7 +204,8 @@ class OurNeuralNetwork:
     # print("y_pred feedforward",y_pred)
 
     gap = 0
-    y_pred = 1 if y_pred > gap else -1 if y_pred < -gap else 0
+
+    # y_pred = 1 if y_pred > gap else -1 if y_pred < -gap else 0
     # if y_pred > gap:
     #   y_pred = 1
     # elif y_pred < -gap:
@@ -213,97 +217,81 @@ class OurNeuralNetwork:
     # y_pred = np.sign(y_pred)
     return y_pred
 
-  def train(self, data, all_y_trues):
-    '''
-    - data is a (n x 2) numpy array, n = # of samples in the dataset.
-    - all_y_trues is a numpy array with n elements.
-      Elements in all_y_trues correspond to those in data.
-    '''
-    # 0.001 对 1500  ， 0.01 对1000 不行
-    learn_rate = self.learn_rate # 0.001
-    # epochs = 1000      # number of times to loop through the entire dataset
-    losss_l = []
-    epochs_l = []
-    for epoch in range(self.epochs):
-      for x, y_true in zip(data, all_y_trues):   #  batch size = 1
-        # (1)
-        # phi = (self.w1 * x[0] + self.b1) * Paulis['Z1'] + \
-        #       (self.w2 * x[1] + self.b2) * Paulis['Z2'] + \
-        #       (self.w3 * x[0] + self.b3) * (self.w4 * x[1] + self.b4) * Paulis['ZZ']
-        # (2)
-        phi = (self.w1 * x[0] + self.b1) * Paulis['Z1'] + \
-              (self.w1 * x[1] + self.b1) * Paulis['Z2'] + \
-              (self.w2 * x[0] + self.b2) * (self.w2 * x[1] + self.b2) * Paulis['ZZ']
+  def loss_function(self, y_true, y_pred):
+    loss = nn.MSELoss(reduction="mean")
+    output = loss(y_true, y_pred)
+    return output
 
-        u_u = scipy.linalg.expm(1j * phi)
-        A_out = u_u
+  def train(self, Train):
+    myloader = DataLoader(dataset=Train, batch_size=10, shuffle=True, drop_last=False)
+    losses_epochs_list = []
+    self.epochs = 2000
+    self.learn_rate = 0.01
+    for j in range(self.epochs):    # 一个 epoch
+      loss_one_epoch_list = []
+      for batch_data in myloader:   # 一个 batch
+        X_train_batch, y_train_batch = batch_data[0], batch_data[1]
+        X_train_batch,  y_train_batch = X_train_batch.numpy(), y_train_batch.numpy()
+        # forward process for every data point 中间过程变量都要用到，所以不能直接调用 self.forward
+        # 问题：一个batch的数据，变量怎么存储？
+        phi_batch = []
+        A_out_batch = []
+        y_pred_batch = []
 
-        #todo repeat 1 次 now
-        if repeat == 1:
-          psi = np.asarray(u_u) @ np.transpose(psi_0)
-        # for r in range(repeat):
-        #     psi = np.asarray(u_u) @ h_2 @ psi
+        for i, X in enumerate(X_train_batch):
+          phi = (self.w1 * X[0] + self.b1) * Paulis['Z1'] + \
+                (self.w1 * X[1] + self.b1) * Paulis['Z2'] + \
+                (self.w2 * X[0] + self.b2) * (self.w2 * X[1] + self.b2) * Paulis['ZZ']
+          A_out = scipy.linalg.expm(1j * phi)
 
-        y_pred = np.real(psi.conj().T @ m_m @ psi).item()  # temp
-        # print(y_pred)
-        # print(y_true)
-        # print("y_pred ?", y_pred)
-        gap = 0
-        y_pred = 1 if y_pred > gap else -1 if y_pred < -gap else 0
-        # if y_pred > gap:
-        #   y_pred = 1
-        # elif y_pred < -gap:
-        #   y_pred = -1
-        # else:
-        #   y_pred = 0
+          psi_0 = np.array([[0.5, 0.5, 0.5, 0.5]])
+          repeat = 1
+          if repeat == 1:
+            psi = np.asarray(A_out) @ np.transpose(psi_0)
+          y_pred = np.real(psi.conj().T @ m_m @ psi).item()
 
-        # 适用sign函数，导致梯度为0
-        # y_pred = np.sign(y_pred)
-        # print("y_pred is", y_pred)
-        #todo --- Calculate partial derivatives.
-        #todo 计算 d(loss)/d(y_pre)
-        #todo mse loss = ((y_true - y_pred) ** 2)
-        #todo So, d_L_d_ypred = -2 * (y_true - y_pred)
+          phi_batch.append(phi)
+          A_out_batch.append(A_out)
+          y_pred_batch.append(y_pred)
 
-        d_L_d_ypred = 2 * (y_pred - y_true) # 相同的话，0，不同的话，-4 或 4
-        # d_L_d_ypred = 0 if (y_true == y_pred or y_pred == 0) else -1  # 01 loss/ l1 loss
-        # print("d_L_d_ypred", d_L_d_ypred)
+        phi_batch = np.array(phi_batch)
+        A_out_batch = np.array(A_out_batch)
+        y_pred_batch = np.array(y_pred_batch)
 
-        #todo 计算 d(y_pre)/d(A)  #  (4, 4)
-        d_pre_d_A_res = d_pre_d_A(A=A_out, H_2=h_2, M=m_m, zero_2=zero2)
-        # print("d_pre_d_A_res", d_pre_d_A_res.shape)
+        # loss of a batch
+        loss_batch = self.loss_function(torch.Tensor(y_train_batch), torch.Tensor(y_pred_batch))
+        # print("loss_batch", loss_batch)
+        loss_one_epoch_list.append(loss_batch)
 
-        # todo 计算 d(A)/d(phi) 级数展开，实虚部分开，求trace: (4,4,4) -> (4,4) 过大
+        ### back propagation:
+        # todo 计算  d(L)/d(ypred) -- mean # scalar
+        d_L_d_ypred = 2 * (y_pred_batch - y_train_batch).mean()
+
+        # todo 计算 d(y_pre)/d(A) -- mean # (4, 4)  # y_pre 是 scalar, A 是（4，4）
+        A_out_batch_mean = A_out_batch.mean(axis=0)
+        d_pre_d_A_res = d_pre_d_A(A=A_out_batch_mean, H_2=h_2, M=m_m, zero_2=zero2)
+
+        # todo 计算 d(A)/d(phi)  -- mean : 级数展开，实虚部分开. 过大 # A 是（4，4）phi是 (4,4)
         # 实部
-        d_A_d_phi_real_res = d_A_d_phi_real(phi).astype(complex) #(4,4,4)
-        d_A_d_phi_real_res = np.trace(d_A_d_phi_real_res,)
-        # print("d_A_d_phi_real_res", d_A_d_phi_real_res.shape)
+        phi = phi_batch.mean(axis=0)
+        d_A_d_phi_real_res = d_A_d_phi_real(phi).astype(complex)   # (4,4,4)
+        # d_A_d_phi_real_res = np.trace(d_A_d_phi_real_res,)       # option1: 求trace (4,4,4,4) -> (4,4)
+        d_A_d_phi_real_res = d_A_d_phi_real_res.mean(axis=(0,1))   # option2: 求mean  (4,4,4,4) -> (4,4)
         # 虚部
-        d_A_d_phi_im_res = d_A_d_phi_im(phi).astype(complex)
-        d_A_d_phi_im_res = np.trace(d_A_d_phi_im_res)
-        # print("d_A_d_phi_im_res", d_A_d_phi_im_res.shape)
-        # 实部 + 虚部
+        d_A_d_phi_im_res = d_A_d_phi_im(phi).astype(complex)       # (4,4,4)
+        # d_A_d_phi_im_res = np.trace(d_A_d_phi_im_res)            # option1: 求trace (4,4,4,4) -> (4,4)
+        d_A_d_phi_im_res = d_A_d_phi_im_res.mean(axis=(0,1))       # option2: 求mean (4,4,4,4) -> (4,4)
+        # 实部 + 虚部  # (4,4)
         d_A_d_phi_res = d_A_d_phi_real_res + 1j * d_A_d_phi_im_res
-        # print("d_A_d_phi_res", type(d_A_d_phi_res))
 
-        #
-        # todo 计算 d(phi) for d(w)/d(b)    (4,4)
-        # d_phi_d_w1 = x[0] * Paulis['Z1']
-        # d_phi_d_w2 = x[1] * Paulis['Z2']
-        # d_phi_d_w3 = x[0] * (self.b4 + self.w4 * x[1]) * Paulis['ZZ']
-        # d_phi_d_w4 = x[1] * (self.b3 + self.w3 * x[0]) * Paulis['ZZ']
-        #
-        # d_phi_d_b1 = Paulis['Z1']
-        # d_phi_d_b2 = Paulis['Z2']
-        # d_phi_d_b3 = (self.b4 + self.w4 * x[1]) * Paulis['ZZ']
-        # d_phi_d_b4 = (self.b3 + self.w3 * x[0]) * Paulis['ZZ']
-
-        d_phi_d_w1 = x[0] * Paulis['Z1'] + x[1] * Paulis['Z2']
+        #todo 计算 d(phi)/d(w) and  d(phi)/d(b)   # (4,4)
+        X_mean = X_train_batch.mean(axis=0)
+        d_phi_d_w1 = X_mean[0] * Paulis['Z1'] + X_mean[1] * Paulis['Z2']
         d_phi_d_b1 = Paulis['Z1'] + Paulis['Z2']
-        d_phi_d_w2 = (2 * x[0] * x[1] * self.w2 + self.b2 * (x[0] + x[1]) ) * Paulis['ZZ']
-        d_phi_d_b2 = (self.w2 * (x[0] + x[1]) + 2 * self.b2) * Paulis['ZZ']
+        d_phi_d_w2 = (2 * X_mean[0] * X_mean[1] * self.w2 + self.b2 * (X_mean[0] + X_mean[1]) ) * Paulis['ZZ']
+        d_phi_d_b2 = (self.w2 * (X_mean[0] + X_mean[1]) + 2 * self.b2) * Paulis['ZZ']
 
-        # todo 计算 d(L) for d(w)/d(b)  # (4, 4)
+        # todo 合起来: 计算 d(L) for d(w)/d(b)  # (4, 4)
         # (2)  2个w 2个b 的phi
         d_L_d_w1 = np.array(d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_w1)
         d_L_d_w2 = np.array(d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_w2)
@@ -319,103 +307,27 @@ class OurNeuralNetwork:
         d_L_d_w2 = np.trace(d_L_d_w2)
         d_L_d_b1 = np.trace(d_L_d_b1)
         d_L_d_b2 = np.trace(d_L_d_b2)
-        # # 实数的 np.tanh
-        d_L_d_w1 = np.tanh(d_L_d_w1)
-        d_L_d_w2 = np.tanh(d_L_d_w2)
-        d_L_d_b1 = np.tanh(d_L_d_b1)
-        d_L_d_b2 = np.tanh(d_L_d_b2)
-        # # update
-        self.w1 -= learn_rate * d_L_d_w1
-        self.w2 -= learn_rate * d_L_d_w2
-        self.b1 -= learn_rate * d_L_d_b1
-        self.b2 -= learn_rate * d_L_d_b2
 
-        # self.w1 += learn_rate * d_L_d_w1
-        # self.w2 += learn_rate * d_L_d_w2
-        # self.b1 += learn_rate * d_L_d_b1
-        # self.b2 += learn_rate * d_L_d_b2
-
-        # #(1) 4个w 4个b 的phi
-        # # --- Update weights and biases
-        # # 开始还是 矩阵呢 (4, 4) 对角矩阵
-        # d_L_d_w1 = np.array(d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_w1)
-        # d_L_d_w2 = np.array(d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_w2)
-        # d_L_d_w3 = np.array(d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_w3)
-        # d_L_d_w4 = np.array(d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_w4)
-        # # 复数矩阵 --> 实数矩阵
-        # d_L_d_w1 = complex_array_to_real_array(d_L_d_w1)
-        # d_L_d_w2 = complex_array_to_real_array(d_L_d_w2)
-        # d_L_d_w3 = complex_array_to_real_array(d_L_d_w3)
-        # d_L_d_w4 = complex_array_to_real_array(d_L_d_w4)
-        # # 矩阵的 np.tanh
-        # # d_L_d_w1 = np.tanh(d_L_d_w1)
-        # # d_L_d_w2 = np.tanh(d_L_d_w2)
-        # # d_L_d_w3 = np.tanh(d_L_d_w3)
-        # # d_L_d_w4 = np.tanh(d_L_d_w4)
-        # # 矩阵的迹 实数
-        # d_L_d_w1 = np.trace(d_L_d_w1)
-        # d_L_d_w2 = np.trace(d_L_d_w2)
-        # d_L_d_w3 = np.trace(d_L_d_w3)
-        # d_L_d_w4 = np.trace(d_L_d_w4)
-        # # 实数的 np.tanh
+        # # # 实数的 np.tanh 避免爆炸
         # d_L_d_w1 = np.tanh(d_L_d_w1)
         # d_L_d_w2 = np.tanh(d_L_d_w2)
-        # d_L_d_w3 = np.tanh(d_L_d_w3)
-        # d_L_d_w4 = np.tanh(d_L_d_w4)
-        #
-        # # update
-        # self.w1 -= learn_rate * d_L_d_w1
-        # self.w2 -= learn_rate * d_L_d_w2
-        # self.w3 -= learn_rate * d_L_d_w3
-        # self.w4 -= learn_rate * d_L_d_w4
-        # # print("w1 change",  learn_rate * d_L_d_w1)
-        # # print("w2", self.w2)
-        # # print("w3", self.w3)
-        # # print("w4", self.w4)
-        #
-        # # 开始 b 参数还是 矩阵呢
-        # d_L_d_b1 = d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_b1
-        # d_L_d_b2 = d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_b2
-        # d_L_d_b3 = d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_b3
-        # d_L_d_b4 = d_L_d_ypred * d_pre_d_A_res * d_A_d_phi_res * d_phi_d_b4
-        # # 复数矩阵 --> 实数矩阵
-        # d_L_d_b1 = complex_array_to_real_array(d_L_d_b1)
-        # d_L_d_b2 = complex_array_to_real_array(d_L_d_b2)
-        # d_L_d_b3 = complex_array_to_real_array(d_L_d_b3)
-        # d_L_d_b4 = complex_array_to_real_array(d_L_d_b4)
-        # # 矩阵的 np.tanh
-        # # d_L_d_b1 = np.tanh(d_L_d_b1)
-        # # d_L_d_b2 = np.tanh(d_L_d_b2)
-        # # d_L_d_b3 = np.tanh(d_L_d_b3)
-        # # d_L_d_b4 = np.tanh(d_L_d_b4)
-        # # 矩阵的迹 实数
-        # d_L_d_b1 = np.trace(d_L_d_b1)
-        # d_L_d_b2 = np.trace(d_L_d_b2)
-        # d_L_d_b3 = np.trace(d_L_d_b3)
-        # d_L_d_b4 = np.trace(d_L_d_b4)
-        # # 实数的 np.tanh
         # d_L_d_b1 = np.tanh(d_L_d_b1)
         # d_L_d_b2 = np.tanh(d_L_d_b2)
-        # d_L_d_b3 = np.tanh(d_L_d_b3)
-        # d_L_d_b4 = np.tanh(d_L_d_b4)
         # # update
-        # self.b1 -= learn_rate * d_L_d_b1
-        # self.b2 -= learn_rate * d_L_d_b2
-        # self.b3 -= learn_rate * d_L_d_b3
-        # self.b4 -= learn_rate * d_L_d_b4
+        self.w1 -= self.learn_rate * d_L_d_w1
+        self.w2 -= self.learn_rate * d_L_d_w2
+        self.b1 -= self.learn_rate * d_L_d_b1
+        self.b2 -= self.learn_rate * d_L_d_b2
+      loss_one_epoch = np.array(loss_one_epoch_list).sum()
+      if j % 50 == 0:
+        print("Epoch {} Loss:{}".format(j, loss_one_epoch))
+      losses_epochs_list.append(loss_one_epoch)
 
-      # --- Calculate total loss at the end of each epoch
-      if epoch % 10 == 0:
-        y_preds = np.apply_along_axis(self.feedforward, 1, data)  # apply 所有data到函数中。 apply_along_axis(函数，data 纬度， data )
-        # gap = 0
-        # y_preds = [1 if y_p > gap else -1 if y_p < -gap else 0 for y_p in y_preds]
-        loss = mse_loss(all_y_trues, y_preds)
+    print("losses_epochs_list", losses_epochs_list)
 
-        print("Epoch %d loss: %.3f" % (epoch, loss))
-        losss_l.append(loss)
-        epochs_l.append(epoch)
-
+    # drawing:
     fig = plt.figure(figsize=(5, 5))
     ax1 = fig.add_subplot(1, 1, 1)
-    ax1.plot(epochs_l, losss_l)
+    ax1.plot([_+1 for _ in range(self.epochs)], losses_epochs_list)
     plt.show()
+    return

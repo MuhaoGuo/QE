@@ -68,9 +68,6 @@ if __name__ == '__main__':
     checkGradient(I, phi)
 
 
-
-
-
 def d_A_d_phi_real(phi):
     t_0 = (1 / 2)
     gradient = -((t_0 * np.einsum('ik, jl', np.eye(4, 4), phi.T)) + (t_0 * np.einsum('ik, jl', phi, np.eye(4, 4))))
@@ -79,3 +76,5 @@ def d_A_d_phi_real(phi):
 
 phi = np.random.randn(4, 4)
 d_A_d_phi_real(phi)
+
+

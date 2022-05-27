@@ -114,21 +114,29 @@ f(n) = 2, for n = 2
 f(n) = f(n-1) + f(n-2), for n >= 2
 '''
 
-def climbStairs(n: int) -> int:
-  res = [0, 1, 2]
-  if n == 1:
-    return 1
-  if n == 2:
-    return 2
 
-  # f(n) = f(n-1) + f(n-2), for n >= 2
-  for i in range(3, n + 1):
-    cur = res[i - 1] + res[i - 2]
-    res.append(cur)
-  print("res", res)
-  return res[-1]
 
-print(climbStairs(10))
+from torch.utils.data import Dataset, TensorDataset, DataLoader
+import torch
+import numpy as np
+from torch import nn
+X = np.arange(0, 20).reshape(10,2)
+X = torch.Tensor(X)
+print(X)
+y = [0 for i in range(10)]
+y = torch.Tensor(y)
+print(y)
 
-# res [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
-# 89
+ds = TensorDataset(X, y)
+
+myloader = DataLoader(dataset=ds, batch_size=2, shuffle=False, drop_last = False)
+for data in myloader:
+    print(data)
+
+
+
+loss = nn.MSELoss()
+input = torch.randn(3, 5, requires_grad=True)
+target = torch.randn(3, 5)
+output = loss(input, target)
+output.backward()
